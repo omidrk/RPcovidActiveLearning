@@ -17,24 +17,31 @@ if __name__ == "__main__":
     #train for the known model
     manager.train_known(1,30,40)
     manager.validate()
+    for i in range(5):
+        #start unknown part
+        print('Calculate sample probability...')
+        probs = manager.predict_probability(500) #budget of searching
+        # print(len(temp[1]))
+        logprob = torch.log(probs[1])
+        E = logprob*probs[1]
+        E = E.sum(1)
+        probs1 = list(zip(probs[0],E))
+    #     print(probs1)
+        res = sorted(probs1, key = lambda x: x[1])
+        indx = np.array(res[:100],dtype=np.int) #untill batch index
+        indx = indx[:,0].astype('int32')
+        print('Sample probability done.')
+#         print(indx)
+        #train unknown
+        print('Start training unkown ...')
+        manager.train_Unnown(indx,1,30,40)
+        #Move Items from unknown to known
+        print("start moving from unknown to known ...")
+        manager.move_unknown(indx)
+        del indx
+        if(i%10 == 0):
+            manager.validate()
 
-    #start unknown part
-    probs = manager.predict_probability(500) #budget of searching
-    # print(len(temp[1]))
-    logprob = torch.log(probs[1])
-    E = logprob*probs[1]
-    E = E.sum(1)
-    probs1 = list(zip(probs[0],E))
-    print(probs1)
-    res = sorted(probs1, key = lambda x: x[1])
-    indx = np.array(res[:100],dtype=np.int) #untill batch index
-    indx = indx[:,0].astype('int32')
-    print(indx)
-    #train unknown
-    manager.train_Unnown(indx,1,30,40)
-    #Move Items from unknown to known
-    manager.move_unknown(indx)
-
-    # len(E)
-    # print(E)
-    # temp2 = list([temp[0],E])
+        # len(E)
+        # print(E)
+        # temp2 = list([temp[0],E])

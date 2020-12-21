@@ -58,8 +58,8 @@ class LoadData:
                         batch_size=batch_size,
                         shuffle=False)
         
-        print('total trainning known batch number: {}'.format(len(train_known_loader)))
-        print('total trainning unknown batch number: {}'.format(len(train_Unknown_loader)))
+        print('total trainning known batch number: {}'.format(len(a)))
+        print('total trainning unknown batch number: {}'.format(len(b)))
         print('total testing batch number: {}'.format(len(test_loader)))
         
         # return train_known_loader,train_Unknown_loader,test_loader
