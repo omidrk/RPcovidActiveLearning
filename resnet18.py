@@ -254,6 +254,65 @@ class Resnet18(nn.Module):
         return wd_params, nowd_params
 
 
+class SimpleCNN(nn.Module):
+    def __init__(self):
+        super(SimpleCNN, self).__init__()
+        self.conv1 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3,
+                               bias=False)
+        self.bn1 = nn.BatchNorm2d(64)
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        self.layer1 = create_layer_basic(64, 64, bnum=2, stride=1)
+        self.layer2 = create_layer_basic(64, 128, bnum=2, stride=2)
+        # self.layer3 = create_layer_basic(128, 256, bnum=2, stride=2)
+        # self.layer4 = create_layer_basic(256, 512, bnum=2, stride=2)
+        self.init_weight()
+        # Fully-connected (linear) layers
+        # self.fc1 = nn.Linear(512, 256)
+        self.fc2 = nn.Linear(2048, 64)
+        self.fc3 = nn.Linear(64, 10)
+        # Dropout
+        self.dropout = nn.Dropout(p=0.25)
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = F.relu(self.bn1(x))
+        x = self.maxpool(x)
+
+        x = self.layer1(x)
+        feat8 = self.layer2(x) # 1/8
+        # feat16 = self.layer3(feat8) # 1/16
+        # feat32 = self.layer4(feat16) # 1/32
+        # Prep for linear layer / Flatten
+        # print('Size of feature32 is : ---',feat32.size(0))
+        out = feat8.view(feat8.size(0), -1)
+        print('Size of out is : ---',out.size())
+        # linear layers with dropout in between
+        # out = F.relu(self.fc1(out))
+        # out = self.dropout(out)
+        out = F.relu(self.fc2(out))
+        out = self.dropout(out)
+        out = self.fc3(out)
+        # return feat8, feat16, feat32, out
+        return out
+
+    def init_weight(self):
+        for ly in self.children():
+            if isinstance(ly, nn.Conv2d):
+                nn.init.kaiming_normal_(ly.weight, a=1)
+                if not ly.bias is None: nn.init.constant_(ly.bias, 0)
+
+    def get_params(self):
+        wd_params, nowd_params = [], []
+        for name, module in self.named_modules():
+            if isinstance(module, (nn.Linear, nn.Conv2d)):
+                wd_params.append(module.weight)
+                if not module.bias is None:
+                    nowd_params.append(module.bias)
+            elif isinstance(module,  nn.BatchNorm2d):
+                nowd_params += list(module.parameters())
+        return wd_params, nowd_params
+
+
 if __name__ == "__main__":
     net = Resnet18()
     x = torch.randn(16, 3, 224, 224)

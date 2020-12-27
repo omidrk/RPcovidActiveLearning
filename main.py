@@ -35,6 +35,21 @@ if __name__ == "__main__":
         #train unknown
         print('Start training unkown ...')
         manager.train_Unnown(indx,1,30,40)
+        ###### start to explain the unknown...
+
+        img,a,b = manager.explanation(indx)
+        img = img.squeeze().cpu().numpy()
+        a = a.squeeze().detach().cpu().numpy()
+
+        plt.subplot(2,1,1)
+        plt.imshow(img)
+        plt.subplot(2,1,2)
+        plt.imshow(b)
+        
+        print(plt.show())
+
+
+        
         #Move Items from unknown to known
         print("start moving from unknown to known ...")
         manager.move_unknown(indx)

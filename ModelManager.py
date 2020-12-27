@@ -14,13 +14,19 @@ import os
 
 import time
 import pandas as pd
+from PIL import Image
+import matplotlib.pyplot as plt
 from sklearn.metrics import precision_recall_fscore_support, accuracy_score, confusion_matrix
 
 from random import shuffle
 
 from DS import LoadData
-from resnet18 import Resnet18
+from resnet18 import Resnet18,SimpleCNN
 from loss import OhemCELoss
+
+#captum library
+from captum.attr import visualization as viz
+from captum.attr import LayerGradCam, FeatureAblation, LayerActivation, LayerAttribution
 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -115,7 +121,11 @@ class ModelManager:
                   print("Epoch: {}/{} batch: {}/{} iteration: {}/{} average-loss: {:0.4f}".
                       format(epoch+1, n_epochs, i+1, len(self.KnownLoader), ite+1, max_ite,avg_loss.cpu()))
         # Save checkpoint
-        torch.save(self.model.state_dict(),"./checkpoint/resnet18.pth")
+        if(os.path.exists("./checkpoint")):
+            torch.save(self.model.state_dict(),"./checkpoint/resnet18.pth")
+        else:
+            os.mkdir('checkpoint')
+            torch.save(self.model.state_dict(),"./checkpoint/resnet18.pth")
         number =0
 
 
@@ -166,6 +176,66 @@ class ModelManager:
 #         oldIndices = self.unknown.indices.copy()
         self.unknown.indices = oldIndices
   
+    def explanation(self,dataindex):
+        oldIndices = self.unknown.indices.copy()
+        self.unknown.indices = dataindex
+        datasetLoader =torch.utils.data.DataLoader(
+                            dataset=self.unknown,
+                            batch_size=1,
+                            shuffle=False)
+        self.model.eval()
+        # for param in self.model.parameters():
+        #     param.requires_grad = False
+        avg_loss = []
+        #Dont forget to replace indices at end ##########
+
+        layer_gc = LayerGradCam(self.model, self.model.layer1[0].conv2)
+        #deep lift
+        dl = LayerDeepLift(self.model, self.model.layer1[0].conv2)
+
+        # atrr = []
+        plt.figure(figsize=(18,10))
+        
+        
+        for i, batch in enumerate(datasetLoader):
+
+                lb = batch[1].to(device)
+                print(len(lb))
+                img = batch[0].to(device)
+                # plt.subplot(2,1,1)
+                # plt.imshow(img.squeeze().cpu().numpy())
+                
+                lbin = batch[1].cpu().numpy()
+                print(lbin)
+                pred = self.model(img)
+                predlb = torch.argmax(pred,1)
+                print('Prediction label is :',predlb.cpu().numpy())
+                print('Ground Truth label is: ',lb.cpu().numpy())
+
+                gc_attr = layer_gc.attribute(img, target=int(lbin[0]))
+                upsampled_attr = LayerAttribution.interpolate(gc_attr, (28, 28))
+
+                base = torch.zeros([1,1,28,28]).to(device)
+                de_attr = dl.attribute(img,base, target=int(lbin[0]))
+                dl_upsampled_attr = LayerAttribution.interpolate(de_attr, (28, 28))
+                
+
+
+
+                # upsampled_attr = LayerAttribution.interpolate(gc_attr, (28, 28))
+                # plt.subplot(2,1,2)
+                # plt.imshow(upsampled_attr.squeeze().detach().cpu().numpy())
+                # atrr.append[gc_attr]
+                print("done ...")
+                # print(gc_attr,upsampled_attr.squeeze().detach().cpu().numpy())
+                # plt.show()
+                return img,gc_attr,upsampled_attr.squeeze().detach().cpu().numpy(),dl_upsampled_attr.squeeze().detach().cpu().numpy()
+
+
+
+
+
+
     def _compute_scores(self,y_true, y_pred):
 
             folder = "test"
