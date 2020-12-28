@@ -6,6 +6,9 @@ Created on Sun Dec 13 20:52:09 2020
 """
 import torch
 import numpy as np
+import torch.nn as nn
+import torch.nn.functional as F
+import matplotlib.pyplot as plt
 
 from resnet18 import Resnet18
 from DS import LoadData
@@ -17,7 +20,7 @@ if __name__ == "__main__":
     #train for the known model
     manager.train_known(1,30,40)
     manager.validate()
-    for i in range(5):
+    for i in range(1):
         #start unknown part
         print('Calculate sample probability...')
         probs = manager.predict_probability(500) #budget of searching
@@ -36,17 +39,30 @@ if __name__ == "__main__":
         print('Start training unkown ...')
         manager.train_Unnown(indx,1,30,40)
         ###### start to explain the unknown...
+        manager.train_unknown_exp(indx,1,30,40)
 
-        img,a,b = manager.explanation(indx)
-        img = img.squeeze().cpu().numpy()
-        a = a.squeeze().detach().cpu().numpy()
+        # img,a,b,c = manager.explanation(indx)
+        # # img = img.squeeze().cpu().numpy()
+        # img = img.squeeze()
+        # img[img == -0.5] = 0
+        # img[img != 0] = 1
+        # # print(img)
+        # # a = a.squeeze().detach().cpu().numpy()
+        # #define loss
+        # cross_entropy = nn.BCELoss()
+        # print(b.size(),img.size())
+        # b = F.relu(b, inplace=False)
+        # print(b.size(),img.size())
 
-        plt.subplot(2,1,1)
-        plt.imshow(img)
-        plt.subplot(2,1,2)
-        plt.imshow(b)
+        # newLoss = cross_entropy(b.cuda(),img.cuda())
+        # print(newLoss)
+
+        # plt.subplot(2,1,1)
+        # plt.imshow(img.cpu().numpy())
+        # # plt.subplot(2,1,2)
+        # # plt.imshow(b)
         
-        print(plt.show())
+        # # print(plt.show())
 
 
         

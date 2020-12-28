@@ -285,7 +285,7 @@ class SimpleCNN(nn.Module):
         # Prep for linear layer / Flatten
         # print('Size of feature32 is : ---',feat32.size(0))
         out = feat8.view(feat8.size(0), -1)
-        print('Size of out is : ---',out.size())
+        # print('Size of out is : ---',out.size())
         # linear layers with dropout in between
         # out = F.relu(self.fc1(out))
         # out = self.dropout(out)

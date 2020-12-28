@@ -36,7 +36,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 class ModelManager:
     def __init__(self,ModelRoot):
         self.ModelRoot = ModelRoot
-        self.model = Resnet18()
+        self.model = SimpleCNN()
         self.model = self.model.to(device)
         dataSource = LoadData(root='./data')
 
@@ -175,6 +175,77 @@ class ModelManager:
                 
 #         oldIndices = self.unknown.indices.copy()
         self.unknown.indices = oldIndices
+    
+    def train_unknown_exp(self,dataindex,n_epochs,ite,max_ite):
+        # print(self.unknown[dataindex])
+        oldIndices = self.unknown.indices.copy()
+        self.unknown.indices = dataindex
+#         train.indices = dataindex
+#         dataset = self.unknown[dataindex]
+        datasetLoader =torch.utils.data.DataLoader(
+                            dataset=self.unknown,
+                            batch_size=1,
+                            shuffle=False)
+        self.model.train()
+        avg_loss = []
+        
+        optim = torch.optim.Adam(self.model.parameters(), 
+                                          lr=0.001, 
+                                          weight_decay=0)
+        # lossOH = OhemCELoss(0.2,50) #cause batch is 100
+        criteria1 = nn.CrossEntropyLoss()
+        criteria2 = nn.BCELoss()
+
+        layer_gc = LayerGradCam(self.model, self.model.layer1[0].conv2)
+
+        print('Init Unknown training with explanation...')
+        number = 0
+        for epoch in range(n_epochs):
+            for i, batch in enumerate(datasetLoader):
+                lb = batch[1].to(device)
+
+                maskLb = batch[0].clone()
+                maskLb = maskLb.squeeze()
+                maskLb[maskLb == -0.5] = 0
+                maskLb[maskLb != 0] = 1
+                maskLb = maskLb.to(device)
+
+                img = batch[0].to(device)
+
+                # Training
+                optim.zero_grad()
+                # a,b,c,out = self.model(img)
+                # print(img.size(),maskLb.size(),lb.size())
+                out = self.model(img)
+                predlb = torch.argmax(out,1) 
+                print('Prediction label is :',predlb.cpu().numpy())
+                print('Ground Truth label is: ',lb.cpu().numpy())
+
+                ##explain to me :
+                gc_attr = layer_gc.attribute(img, target=int(predlb.cpu().numpy()))
+                upsampled_attr = LayerAttribution.interpolate(gc_attr, (28, 28))
+                upsampled_attr = upsampled_attr.squeeze()
+                upsampled_attr = F.relu(upsampled_attr, inplace=False)
+                # upsampled_attr = upsampled_attr.to(device)
+                # print(upsampled_attr,maskLb)
+                loss1 = criteria1(out,lb)
+                loss2 = criteria2(upsampled_attr,maskLb)
+                print(loss1.cpu(),loss2.cpu())
+                avg_loss = torch.mean(loss1)
+               
+                loss1.backward()
+                optim.step()
+                # print(avg_loss)
+                number+=1
+
+                if number%10 == 0:
+                  # print(number)
+                  print("Epoch: {}/{} batch: {}/{} iteration: {}/{} average-loss: {:0.4f}".
+                      format(epoch+1, n_epochs, i+1, len(datasetLoader), ite+1, max_ite,avg_loss.cpu()))
+                
+#         oldIndices = self.unknown.indices.copy()
+        self.unknown.indices = oldIndices
+
   
     def explanation(self,dataindex):
         oldIndices = self.unknown.indices.copy()
@@ -212,7 +283,8 @@ class ModelManager:
                 print('Prediction label is :',predlb.cpu().numpy())
                 print('Ground Truth label is: ',lb.cpu().numpy())
 
-                gc_attr = layer_gc.attribute(img, target=int(lbin[0]))
+                # gc_attr = layer_gc.attribute(img, target=int(lbin[0]))
+                gc_attr = layer_gc.attribute(img, target=int(predlb.cpu().numpy()))
                 upsampled_attr = LayerAttribution.interpolate(gc_attr, (28, 28))
 
                 base = torch.zeros([1,1,28,28]).to(device)
