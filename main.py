@@ -20,10 +20,10 @@ if __name__ == "__main__":
     #train for the known model
     manager.train_known(1,30,40)
     manager.validate()
-    for i in range(1):
+    for i in range(3):
         #start unknown part
         print('Calculate sample probability...')
-        probs = manager.predict_probability(500) #budget of searching
+        probs = manager.predict_probability(10000) #budget of searching
         # print(len(temp[1]))
         logprob = torch.log(probs[1])
         E = logprob*probs[1]
@@ -35,11 +35,15 @@ if __name__ == "__main__":
         indx = indx[:,0].astype('int32')
         print('Sample probability done.')
 #         print(indx)
+
+
         #train unknown
-        print('Start training unkown ...')
-        manager.train_Unnown(indx,1,30,40)
+        # print('Start training unkown ...')
+        # manager.train_Unnown(indx,1,30,40)
         ###### start to explain the unknown...
-        manager.train_unknown_exp(indx,1,30,40)
+        # manager.train_unknown_exp(indx,1,30,40)
+
+
 
         # img,a,b,c = manager.explanation(indx)
         # # img = img.squeeze().cpu().numpy()
@@ -70,8 +74,11 @@ if __name__ == "__main__":
         print("start moving from unknown to known ...")
         manager.move_unknown(indx)
         del indx
-        if(i%10 == 0):
-            manager.validate()
+        print('Train started again...')
+        manager.train_known_expl(1,30,40)
+        manager.validate()
+        # if(i%10 == 0):
+        #     manager.validate()
 
         # len(E)
         # print(E)

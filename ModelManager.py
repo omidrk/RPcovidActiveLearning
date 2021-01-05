@@ -175,35 +175,40 @@ class ModelManager:
                 
 #         oldIndices = self.unknown.indices.copy()
         self.unknown.indices = oldIndices
-    
-    def train_unknown_exp(self,dataindex,n_epochs,ite,max_ite):
-        # print(self.unknown[dataindex])
-        oldIndices = self.unknown.indices.copy()
-        self.unknown.indices = dataindex
-#         train.indices = dataindex
-#         dataset = self.unknown[dataindex]
-        datasetLoader =torch.utils.data.DataLoader(
-                            dataset=self.unknown,
-                            batch_size=1,
-                            shuffle=False)
+
+    def train_known_expl(self,n_epochs,ite,max_ite):
         self.model.train()
         avg_loss = []
+        # if os.path.exists('./checkpoint'):
+        #   try:
+        #     print('model found ...')
+        #     self.model.load_state_dict(torch.load('./checkpoint/resnet18.pth'))
+        #     print('Model loaded sucessfully.')
+        #     continue
+        #   except:
+        #     print('Not found any model ... ')
+            
         
         optim = torch.optim.Adam(self.model.parameters(), 
                                           lr=0.001, 
                                           weight_decay=0)
         # lossOH = OhemCELoss(0.2,50) #cause batch is 100
+
         criteria1 = nn.CrossEntropyLoss()
         criteria2 = nn.BCELoss()
+        criteria21 = nn.BCEWithLogitsLoss()
+
 
         layer_gc = LayerGradCam(self.model, self.model.layer1[0].conv2)
 
-        print('Init Unknown training with explanation...')
+        looss = nn.CrossEntropyLoss()
+        print('Init known training with explanation...')
         number = 0
         for epoch in range(n_epochs):
-            for i, batch in enumerate(datasetLoader):
+            for i, batch in enumerate(self.KnownLoader):
                 lb = batch[1].to(device)
 
+                #define mask
                 maskLb = batch[0].clone()
                 maskLb = maskLb.squeeze()
                 maskLb[maskLb == -0.5] = 0
@@ -211,29 +216,33 @@ class ModelManager:
                 maskLb = maskLb.to(device)
 
                 img = batch[0].to(device)
-
                 # Training
                 optim.zero_grad()
                 # a,b,c,out = self.model(img)
-                # print(img.size(),maskLb.size(),lb.size())
                 out = self.model(img)
-                predlb = torch.argmax(out,1) 
-                print('Prediction label is :',predlb.cpu().numpy())
-                print('Ground Truth label is: ',lb.cpu().numpy())
+                predlb = torch.argmax(out,1)
+                # predlb = predlb.cpu().numpy()
+
+                # print('Prediction label is :',predlb.cpu().numpy())
+                # print('Ground Truth label is: ',lb.cpu().numpy())
+
 
                 ##explain to me :
-                gc_attr = layer_gc.attribute(img, target=int(predlb.cpu().numpy()))
+                gc_attr = layer_gc.attribute(img, target=predlb, relu_attributions=False)
                 upsampled_attr = LayerAttribution.interpolate(gc_attr, (28, 28))
                 upsampled_attr = upsampled_attr.squeeze()
-                upsampled_attr = F.relu(upsampled_attr, inplace=False)
+                # upsampled_attr = F.relu(upsampled_attr, inplace=False)
+                # print('explain: ',upsampled_attr[0].cpu())
+                # print('orig: ',img[0].cpu().numpy())
                 # upsampled_attr = upsampled_attr.to(device)
                 # print(upsampled_attr,maskLb)
                 loss1 = criteria1(out,lb)
-                loss2 = criteria2(upsampled_attr,maskLb)
-                print(loss1.cpu(),loss2.cpu())
-                avg_loss = torch.mean(loss1)
+                loss2 = criteria21(upsampled_attr,maskLb)
+                lossall = 0.7*loss1 + 0.3*loss2
+                # print(loss1,loss2)
+                avg_loss = torch.mean(lossall)
                
-                loss1.backward()
+                lossall.backward()
                 optim.step()
                 # print(avg_loss)
                 number+=1
@@ -241,10 +250,102 @@ class ModelManager:
                 if number%10 == 0:
                   # print(number)
                   print("Epoch: {}/{} batch: {}/{} iteration: {}/{} average-loss: {:0.4f}".
-                      format(epoch+1, n_epochs, i+1, len(datasetLoader), ite+1, max_ite,avg_loss.cpu()))
-                
-#         oldIndices = self.unknown.indices.copy()
-        self.unknown.indices = oldIndices
+                      format(epoch+1, n_epochs, i+1, len(self.KnownLoader), ite+1, max_ite,avg_loss.cpu()))
+        # Save checkpoint
+        if(os.path.exists("./checkpoint")):
+            torch.save(self.model.state_dict(),"./checkpoint/resnet18.pth")
+        else:
+            os.mkdir('checkpoint')
+            torch.save(self.model.state_dict(),"./checkpoint/resnet18.pth")
+        number =0
+
+
+
+
+    
+    def train_known_expl(self,n_epochs,ite,max_ite):
+        self.model.train()
+        avg_loss = []
+        # if os.path.exists('./checkpoint'):
+        #   try:
+        #     print('model found ...')
+        #     self.model.load_state_dict(torch.load('./checkpoint/resnet18.pth'))
+        #     print('Model loaded sucessfully.')
+        #     continue
+        #   except:
+        #     print('Not found any model ... ')
+            
+        
+        optim = torch.optim.Adam(self.model.parameters(), 
+                                          lr=0.001, 
+                                          weight_decay=0)
+        # lossOH = OhemCELoss(0.2,50) #cause batch is 100
+
+        criteria1 = nn.CrossEntropyLoss()
+        criteria2 = nn.BCELoss()
+        criteria21 = nn.BCEWithLogitsLoss()
+
+
+        layer_gc = LayerGradCam(self.model, self.model.layer1[0].conv2)
+
+        looss = nn.CrossEntropyLoss()
+        print('Init known training with explanation...')
+        number = 0
+        for epoch in range(n_epochs):
+            for i, batch in enumerate(self.KnownLoader):
+                lb = batch[1].to(device)
+
+                #define mask
+                maskLb = batch[0].clone()
+                maskLb = maskLb.squeeze()
+                maskLb[maskLb == -0.5] = 0
+                maskLb[maskLb != 0] = 1
+                maskLb = maskLb.to(device)
+
+                img = batch[0].to(device)
+                # Training
+                optim.zero_grad()
+                # a,b,c,out = self.model(img)
+                out = self.model(img)
+                predlb = torch.argmax(out,1)
+                # predlb = predlb.cpu().numpy()
+
+                # print('Prediction label is :',predlb.cpu().numpy())
+                # print('Ground Truth label is: ',lb.cpu().numpy())
+
+
+                ##explain to me :
+                gc_attr = layer_gc.attribute(img, target=predlb, relu_attributions=False)
+                upsampled_attr = LayerAttribution.interpolate(gc_attr, (28, 28))
+                upsampled_attr = upsampled_attr.squeeze()
+                # upsampled_attr = F.relu(upsampled_attr, inplace=False)
+                # print('explain: ',upsampled_attr[0].cpu())
+                # print('orig: ',img[0].cpu().numpy())
+                # upsampled_attr = upsampled_attr.to(device)
+                # print(upsampled_attr,maskLb)
+                loss1 = criteria1(out,lb)
+                loss2 = criteria21(upsampled_attr,maskLb)
+                lossall = 0.7*loss1 + 0.3*loss2
+                # print(loss1,loss2)
+                avg_loss = torch.mean(lossall)
+               
+                lossall.backward()
+                optim.step()
+                # print(avg_loss)
+                number+=1
+
+                if number%60 == 0:
+                  # print(number)
+                  print("Epoch: {}/{} batch: {}/{} iteration: {}/{} average-loss: {:0.4f}".
+                      format(epoch+1, n_epochs, i+1, len(self.KnownLoader), ite+1, max_ite,avg_loss.cpu()))
+        # Save checkpoint
+        if(os.path.exists("./checkpoint")):
+            torch.save(self.model.state_dict(),"./checkpoint/resnet18.pth")
+        else:
+            os.mkdir('checkpoint')
+            torch.save(self.model.state_dict(),"./checkpoint/resnet18.pth")
+        number =0
+
 
   
     def explanation(self,dataindex):
@@ -343,6 +444,7 @@ class ModelManager:
         # print(len(self.unknown.indices))
         for i in indx:
             self.known.indices.append(i)
+            self.unknown.indices.remove(i)
             
         self.unknown.indices = self.filter_list(self.unknown.indices,indx)
         # print(len(self.unknown.indices),len(self.known.indices))
